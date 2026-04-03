@@ -1,0 +1,42 @@
+/* Grundlegendes Reset für MudBlazor */
+html, body {
+    font-family: Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Fehleranzeige am unteren Bildschirmrand (Standard Blazor) */
+#blazor-error-ui {
+    background: #b32121;
+    color: white;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 10000;
+}
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 0.75rem;
+        top: 0.5rem;
+    }
+
+/* Verhindert den weißen Rand oben, den du erwähnt hast */
+.mud-main-content {
+    padding-top: var(--mud-appbar-height) !important;
+}
+
+/* Falls du noch Standard-Links außerhalb von MudBlazor nutzt */
+a {
+    color: var(--mud-palette-primary);
+    text-decoration: none;
+}
+
+    a:hover {
+        text-decoration: underline;
+    }

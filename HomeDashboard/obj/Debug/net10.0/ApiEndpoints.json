@@ -1,0 +1,18 @@
+[
+  {
+    "ContainingType": "RecipesController",
+    "Method": "CreateRecipe",
+    "RelativePath": "api/Recipes",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "recipe",
+        "Type": "HomeDashboard.Client.Models.Entities.Recipe",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  }
+]

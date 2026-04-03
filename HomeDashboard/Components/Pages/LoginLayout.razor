@@ -1,0 +1,58 @@
+﻿@inherits LayoutComponentBase
+
+@* Diese 3 Provider sind Pflicht für MudBlazor-Funktionen *@
+<MudThemeProvider Theme="_myCustomTheme" />
+
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+
+<MudLayout>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code{
+    // Optional: Hier kannst du Farben anpassen
+    MudTheme _myCustomTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            // Primary & OnPrimary
+            Primary = "#AE000E", // md-sys-color-primary
+
+            // Secondary
+            Secondary = "#AF2E28", // md-sys-color-secondary
+
+            // Tertiary (In MudBlazor oft für Info oder Custom genutzt)
+            Tertiary = "#7A4A00", // md-sys-color-tertiary
+
+            // Error
+            Error = "#BA1A1A", // md-sys-color-error
+
+            // Background & Surfaces
+            Background = "#FFF8F7", // md-sys-color-background
+            Surface = "#FFF8F7", // md-sys-color-surface
+            AppbarBackground = "#AE000E", // Meist identisch mit Primary
+
+            // Textfarben
+            TextPrimary = "#291714", // md-sys-color-on-background
+            TextSecondary = "#5E3F3B", // md-sys-color-on-surface-variant
+
+            // Sonstiges
+            LinesDefault = "#936E6A", // md-sys-color-outline
+            TableLines = "#E8BCB7", // md-sys-color-outline-variant
+            Divider = "#E8BCB7",
+            DrawerBackground = "#FFE9E6", // md-sys-color-surface-container
+        },
+
+        LayoutProperties = new LayoutProperties()
+        {
+            DefaultBorderRadius = "16px", // MD3 nutzt sehr runde Ecken
+
+        }
+    };
+}

@@ -1,0 +1,17 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@layout MainLayout
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1>Willkommen in deinem Home Dashboard!</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card p-3">PV Anlage Status: Online</div>
+    </div>
+    <div class="col-md-6">
+        <button class="btn btn-primary">Zufälliges Rezept finden</button>
+    </div>
+</div>

@@ -1,0 +1,24 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="app.css" />
+    <HeadOutlet />
+</head>
+<body>
+    @* Hier rufen wir die Routes-Komponente auf und setzen den RenderMode *@
+    <Routes @rendermode="InteractiveAuto" />
+
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script src="_framework/blazor.web.js"></script>
+    <script>
+        window.getAntiforgeryToken = function () {
+            const field = document.querySelector('input[name="__RequestVerificationToken"]');
+            return field ? field.value : "";
+        };
+    </script>
+</body>
+</html>

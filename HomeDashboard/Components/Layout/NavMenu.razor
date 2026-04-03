@@ -1,0 +1,35 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+
+<MudNavMenu>
+    @* Ein kleiner Header in der Sidebar *@
+    <div class="pa-4">
+        <MudText Typo="Typo.subtitle2" Color="Color.Primary">MEIN DASHBOARD</MudText>
+    </div>
+
+    <MudNavLink href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">
+        Übersicht
+    </MudNavLink>
+
+    <AuthorizeView>
+        <Authorized>
+            @* Diese Links sehen nur eingeloggte User *@
+            <MudNavLink href="/recipe/new" Icon="@Icons.Material.Filled.AddCircle">
+                Rezepte
+            </MudNavLink>
+            <MudNavLink href="/shoppinglist" Icon="@Icons.Material.Filled.ListAlt">
+                Einkaufsliste
+            </MudNavLink>
+
+            <MudDivider Class="my-2" />
+
+            <MudNavLink href="/logout" Icon="@Icons.Material.Filled.Logout" IconColor="Color.Error">
+                Abmelden
+            </MudNavLink>
+        </Authorized>
+        <NotAuthorized>
+            <MudNavLink href="/login" Icon="@Icons.Material.Filled.Login">
+                Anmelden
+            </MudNavLink>
+        </NotAuthorized>
+    </AuthorizeView>
+</MudNavMenu>

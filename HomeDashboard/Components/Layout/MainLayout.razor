@@ -1,0 +1,81 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_myCustomTheme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    @* Fixed="true" sorgt dafür, dass die Leiste oben klebt *@
+    <MudAppBar Elevation="1" Fixed="true">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudText Typo="Typo.h5" Class="ml-3">Home Dashboard</MudText>
+        <MudSpacer />
+        <AuthorizeView>
+            <Authorized>
+                <MudButton href="logout" Color="Color.Inherit" Variant="Variant.Text">Abmelden</MudButton>
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    @* ClipMode.Always sorgt dafür, dass die Sidebar UNTER der Topbar anfängt *@
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent>
+        @* Das hier ist dein Hauptcontainer *@
+        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    bool _drawerOpen = true;
+
+    void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    // Optional: Hier kannst du Farben anpassen
+    MudTheme _myCustomTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            // Primary & OnPrimary
+            Primary = "#AE000E", // md-sys-color-primary
+            
+            // Secondary
+            Secondary = "#AF2E28", // md-sys-color-secondary
+            
+            // Tertiary (In MudBlazor oft für Info oder Custom genutzt)
+            Tertiary = "#7A4A00", // md-sys-color-tertiary
+            
+            // Error
+            Error = "#BA1A1A", // md-sys-color-error
+
+            // Background & Surfaces
+            Background = "#FFF8F7", // md-sys-color-background
+            Surface = "#FFF8F7", // md-sys-color-surface
+            AppbarBackground = "#AE000E", // Meist identisch mit Primary
+
+            // Textfarben
+            TextPrimary = "#291714", // md-sys-color-on-background
+            TextSecondary = "#5E3F3B", // md-sys-color-on-surface-variant
+
+            // Sonstiges
+            LinesDefault = "#936E6A", // md-sys-color-outline
+            TableLines = "#E8BCB7", // md-sys-color-outline-variant
+            Divider = "#E8BCB7",
+            DrawerBackground = "#FFE9E6", // md-sys-color-surface-container
+        },
+
+        LayoutProperties = new LayoutProperties()
+        {
+            DefaultBorderRadius = "16px", // MD3 nutzt sehr runde Ecken
+            
+        }
+    };
+}

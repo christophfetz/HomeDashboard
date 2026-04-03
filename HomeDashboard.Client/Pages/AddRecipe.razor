@@ -1,0 +1,106 @@
+﻿@page "/recipe/new"
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@rendermode InteractiveAuto
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+    <MudPaper Elevation="4" Class="pa-8">
+        <MudText Typo="Typo.h4" GutterBottom="true">Neues Rezept</MudText>
+
+        <EditForm Model="@recipe" OnSubmit="SaveRecipe">
+            <AntiforgeryToken/>
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField Label="Titel" @bind-Value="recipe.Title" Variant="Variant.Outlined" ShrinkLabel="true" Required="true" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h6" Class="mt-4">Zutaten</MudText>
+                    @foreach (var item in uiIngredients)
+                    {
+                        <div class="d-flex gap-2 mb-2">
+                            <MudTextField T="string" Label="Zutat" @bind-Value="item.Name" Variant="Variant.Outlined" ShrinkLabel="true" Style="flex:2" />
+                            <MudNumericField T="double" Label="Menge" @bind-Value="item.Amount" Variant="Variant.Outlined" ShrinkLabel="true" Style="flex:1" />
+                            <MudTextField T="string" Label="Einheit" @bind-Value="item.Unit" Variant="Variant.Outlined" ShrinkLabel="true" Style="flex:1" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => uiIngredients.Remove(item))" />
+                        </div>
+                    }
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => uiIngredients.Add(new()))">Zutat hinzufügen</MudButton>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField Label="Anleitung" @bind-Value="recipe.Instructions" Variant="Variant.Outlined" ShrinkLabel="true" Lines="5" />
+                </MudItem>
+
+                <MudItem xs="12" Class="d-flex justify-end mt-4">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Speichern</MudButton>
+                </MudItem>
+            </MudGrid>
+        </EditForm>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private Recipe recipe = new();
+    private List<UiIngredient> uiIngredients = new() { new() };
+
+    private async Task SaveRecipe()
+    {
+        try
+        {
+            // Wir rufen die definierte Funktion aus der App.razor auf
+            var token = await JS.InvokeAsync<string>("window.getAntiforgeryToken");
+
+            if (string.IsNullOrEmpty(token))
+            {
+                Snackbar.Add("Sicherheits-Token konnte nicht geladen werden.", Severity.Error);
+                return;
+            }
+
+            // Mapping der Zutaten
+            recipe.Ingredients = uiIngredients
+                .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+                .Select(x => new RecipeIngredient
+                {
+                    Amount = x.Amount,
+                    Unit = x.Unit,
+                    Ingredient = new Ingredient { Name = x.Name }
+                }).ToList();
+
+            // HTTP Request vorbereiten
+            using var request = new HttpRequestMessage(HttpMethod.Post, "api/recipes");
+            request.Content = JsonContent.Create(recipe);
+
+            // Den Header setzen
+            request.Headers.Add("RequestVerificationToken", token);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Rezept gespeichert!", Severity.Success);
+                //Nav.NavigateTo("/");
+            }
+            else
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Fehler: {response.StatusCode}", Severity.Error);
+                Console.WriteLine(errorBody);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Verbindungsfehler zum Server.", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    public class UiIngredient
+    {
+        public string Name { get; set; } = "";
+        public double Amount { get; set; }
+        public string Unit { get; set; } = "g";
+    }
+}

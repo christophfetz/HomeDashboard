@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="HomeDashboard.Client/HomeDashboard.Client.csproj" />
+  <Project Path="HomeDashboard/HomeDashboard.csproj" />
+</Solution>

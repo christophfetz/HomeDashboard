@@ -1,0 +1,102 @@
+﻿@page "/login"
+@layout LoginLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using HomeDashboard.Data
+
+@attribute [AllowAnonymous]
+
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager NavigationManager
+
+<PageTitle>Login</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+    <MudPaper Elevation="4" Class="pa-8">
+        <!-- Logo Bereich -->
+        <div class="d-flex flex-column align-center mb-6">
+            <img src="images/logo.png" alt="Logo" style="width:120px; margin-bottom:16px;" />
+            <MudText Typo="Typo.h4" Class="fw-bold mt-2">Home Dashboard</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Bitte melde dich an</MudText>
+        </div>
+
+        <!-- Blazor-Formular -->
+        <EditForm Model="Input" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            <MudTextField T="string"
+                          Label="Email"
+                          @bind-Value="Input.Email"
+                          Variant="Variant.Outlined"
+                          ShrinkLabel="true"
+                          Class="mb-4" />
+
+            <MudTextField T="string"
+                          Label="Passwort"
+                          @bind-Value="Input.Password"
+                          InputType="InputType.Password"
+                          Variant="Variant.Outlined"
+                          ShrinkLabel="true"
+                          Class="mb-6" />
+
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4">@ErrorMessage</MudAlert>
+            }
+
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true">
+                Einloggen
+            </MudButton>
+        </EditForm>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    // Model für Login
+    public class LoginInput
+    {
+        [Required(ErrorMessage = "Bitte Email eingeben")]
+        [EmailAddress(ErrorMessage = "Bitte gültige Email eingeben")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "Bitte Passwort eingeben")]
+        public string Password { get; set; } = "";
+    }
+
+    // Instanz für Bindings
+    public LoginInput Input { get; set; } = new();
+
+    // Fehleranzeige
+    private string? ErrorMessage;
+
+    // Login-Handler
+    private async Task HandleLogin()
+    {
+        ErrorMessage = null;
+
+        var result = await SignInManager.PasswordSignInAsync(
+            Input.Email,
+            Input.Password,
+            isPersistent: true,
+            lockoutOnFailure: false
+        );
+
+        if (result.Succeeded)
+        {
+            // Seite neu laden, damit Cookies aktiv sind
+            NavigationManager.NavigateTo("/", forceLoad: true);
+        }
+        else if (result.IsLockedOut)
+        {
+            ErrorMessage = "Ihr Account ist gesperrt. Bitte wenden Sie sich an den Administrator.";
+        }
+        else
+        {
+            ErrorMessage = "Login fehlgeschlagen. Bitte Email und Passwort prüfen.";
+        }
+    }
+}

@@ -1,0 +1,4 @@
+wwwroot\appsettings.Development.json
+wwwroot\appsettings.json
+C:\Code\HomeDashboard\HomeDashboard.Client\wwwroot\appsettings.Development.json
+C:\Code\HomeDashboard\HomeDashboard.Client\wwwroot\appsettings.json
