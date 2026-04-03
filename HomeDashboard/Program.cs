@@ -20,10 +20,6 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddMudServices();
 
-// Wichtig: Das hier stellt sicher, dass der AuthenticationState im Browser ankommt
-builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
-
-
 // 1. Connection String aus appsettings.json laden
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Data Source=app.db";
@@ -35,10 +31,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // 1. Identity zuerst registrieren
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
-    options.Password.RequiredLength = 4;
+    options.Password.RequiredLength = 8;
     options.Password.RequireDigit = false;
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequireUppercase = false;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.MaxFailedAccessAttempts = 5;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
@@ -49,7 +47,9 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.SlidingExpiration = true;
     options.LoginPath = "/login";
     options.LogoutPath = "/logout";
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // 🔥 wichtig für HTTPS
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
 });
 
 builder.Services.AddAntiforgery(options =>
@@ -92,14 +92,12 @@ app.UseHttpsRedirection();
 //app.MapStaticAssets();
 
 app.UseStaticFiles();
-app.MapControllers();
 app.UseRouting();
-app.UseAntiforgery(); // Nur einmal aufrufen!
-
-// WICHTIG: Die Reihenfolge der Middleware
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
 
+app.MapControllers();
 
 app.MapRazorComponents<App>()   
     .AddInteractiveServerRenderMode()

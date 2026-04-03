@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using HomeDashboard.Data;
 using HomeDashboard.Client.Models.Entities; // Pfad zu deinen verschobenen Models
 using Microsoft.EntityFrameworkCore;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class RecipesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;

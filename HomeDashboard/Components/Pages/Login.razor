@@ -6,6 +6,7 @@
 @using HomeDashboard.Data
 
 @attribute [AllowAnonymous]
+@rendermode InteractiveServer
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject NavigationManager NavigationManager
@@ -81,8 +82,8 @@
         var result = await SignInManager.PasswordSignInAsync(
             Input.Email,
             Input.Password,
-            isPersistent: true,
-            lockoutOnFailure: false
+            isPersistent: false,
+            lockoutOnFailure: true
         );
 
         if (result.Succeeded)
