@@ -23,7 +23,7 @@
         </div>
 
         <!-- Blazor-Formular -->
-        <EditForm Model="Input" OnValidSubmit="HandleLogin">
+        <EditForm Model="Input" OnValidSubmit="HandleLogin" FormName="login">
             <DataAnnotationsValidator />
 
             <MudTextField T="string"
