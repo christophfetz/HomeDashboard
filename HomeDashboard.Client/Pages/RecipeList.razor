@@ -1,0 +1,175 @@
+@page "/recipes"
+@using HomeDashboard.Client.Models.Entities
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@rendermode InteractiveAuto
+
+<PageTitle>Rezepte</PageTitle>
+
+@* Verstecktes Formular, damit AntiforgeryToken im DOM vorhanden ist *@
+<form style="display:none">
+    <AntiforgeryToken />
+</form>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <div class="d-flex align-center justify-space-between mb-6">
+        <MudText Typo="Typo.h4">Meine Rezepte</MudText>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Href="/recipe/new">
+            NEU
+        </MudButton>
+    </div>
+
+    @if (_loading)
+    {
+        <MudGrid>
+            @for (int i = 0; i < 6; i++)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="24px" Class="mb-2" />
+                            <MudSkeleton Width="60%" />
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+    else if (_recipes.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">
+            Noch keine Rezepte vorhanden. Klicke auf "NEU" um dein erstes Rezept hinzuzufügen.
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @foreach (var recipe in _recipes)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard Elevation="2" Style="height:100%; display:flex; flex-direction:column;">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">@recipe.Title</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent Style="flex:1">
+                            @if (!string.IsNullOrWhiteSpace(recipe.Description))
+                            {
+                                <MudText Typo="Typo.body2" Class="mb-3">@recipe.Description</MudText>
+                            }
+                            <div class="d-flex gap-2 flex-wrap">
+                                @if (recipe.PreparationTimeMinutes > 0)
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.Timer"
+                                             Size="Size.Small" Variant="Variant.Outlined">
+                                        @recipe.PreparationTimeMinutes Min
+                                    </MudChip>
+                                }
+                                @if (recipe.Servings > 0)
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.People"
+                                             Size="Size.Small" Variant="Variant.Outlined">
+                                        @recipe.Servings Pers.
+                                    </MudChip>
+                                }
+                            </div>
+                            @if (recipe.Ingredients.Count > 0)
+                            {
+                                <MudText Typo="Typo.caption" Class="mt-2 d-block">
+                                    @recipe.Ingredients.Count Zutat(en)
+                                </MudText>
+                            }
+                        </MudCardContent>
+                        <MudCardActions>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Color="Color.Primary"
+                                           Title="Bearbeiten"
+                                           OnClick="@(() => Nav.NavigateTo($"/recipe/edit/{recipe.Id}"))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Color="Color.Error"
+                                           Title="Löschen"
+                                           OnClick="@(() => ConfirmDelete(recipe))" />
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private List<Recipe> _recipes = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecipes();
+    }
+
+    private async Task LoadRecipes()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<Recipe>>("api/recipes");
+            _recipes = result ?? new();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Rezepte konnten nicht geladen werden.", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ConfirmDelete(Recipe recipe)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Möchtest du \"{recipe.Title}\" wirklich löschen?");
+        if (confirmed)
+        {
+            await DeleteRecipe(recipe);
+        }
+    }
+
+    private async Task DeleteRecipe(Recipe recipe)
+    {
+        try
+        {
+            var token = await JS.InvokeAsync<string>("window.getAntiforgeryToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                Snackbar.Add("Sicherheits-Token konnte nicht geladen werden.", Severity.Error);
+                return;
+            }
+
+            using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/recipes/{recipe.Id}");
+            request.Headers.Add("RequestVerificationToken", token);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _recipes.Remove(recipe);
+                Snackbar.Add("Rezept gelöscht.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler beim Löschen: {response.StatusCode}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Verbindungsfehler.", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+    }
+}

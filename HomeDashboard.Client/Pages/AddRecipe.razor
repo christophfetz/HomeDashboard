@@ -1,4 +1,6 @@
-﻿@page "/recipe/new"
+@page "/recipe/new"
+@page "/recipe/edit/{Id:int}"
+@using HomeDashboard.Client.Models.Entities
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
@@ -7,7 +9,9 @@
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
     <MudPaper Elevation="4" Class="pa-8">
-        <MudText Typo="Typo.h4" GutterBottom="true">Neues Rezept</MudText>
+        <MudText Typo="Typo.h4" GutterBottom="true">
+            @(IsEditMode ? "Rezept bearbeiten" : "Neues Rezept")
+        </MudText>
 
         <EditForm Model="@recipe" OnSubmit="SaveRecipe">
             <AntiforgeryToken/>
@@ -34,7 +38,8 @@
                     <MudTextField Label="Anleitung" @bind-Value="recipe.Instructions" Variant="Variant.Outlined" ShrinkLabel="true" Lines="5" />
                 </MudItem>
 
-                <MudItem xs="12" Class="d-flex justify-end mt-4">
+                <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                    <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/recipes"))">Abbrechen</MudButton>
                     <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Speichern</MudButton>
                 </MudItem>
             </MudGrid>
@@ -43,14 +48,61 @@
 </MudContainer>
 
 @code {
+    [Parameter] public int? Id { get; set; }
+
+    private bool IsEditMode => Id.HasValue;
+
     private Recipe recipe = new();
     private List<UiIngredient> uiIngredients = new() { new() };
+    private bool _initialized = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_initialized) return;
+        _initialized = true;
+
+        if (IsEditMode)
+        {
+            await LoadRecipe(Id!.Value);
+        }
+    }
+
+    private async Task LoadRecipe(int id)
+    {
+        try
+        {
+            var loaded = await Http.GetFromJsonAsync<Recipe>($"api/recipes/{id}");
+            if (loaded == null)
+            {
+                Snackbar.Add("Rezept nicht gefunden.", Severity.Error);
+                Nav.NavigateTo("/recipes");
+                return;
+            }
+
+            recipe = loaded;
+            uiIngredients = loaded.Ingredients
+                .Select(ri => new UiIngredient
+                {
+                    Name = ri.Ingredient?.Name ?? "",
+                    Amount = ri.Amount,
+                    Unit = ri.Unit
+                })
+                .ToList();
+
+            if (uiIngredients.Count == 0)
+                uiIngredients.Add(new());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Rezept konnte nicht geladen werden.", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+    }
 
     private async Task SaveRecipe()
     {
         try
         {
-            // Wir rufen die definierte Funktion aus der App.razor auf
             var token = await JS.InvokeAsync<string>("window.getAntiforgeryToken");
 
             if (string.IsNullOrEmpty(token))
@@ -59,7 +111,6 @@
                 return;
             }
 
-            // Mapping der Zutaten
             recipe.Ingredients = uiIngredients
                 .Where(x => !string.IsNullOrWhiteSpace(x.Name))
                 .Select(x => new RecipeIngredient
@@ -69,19 +120,25 @@
                     Ingredient = new Ingredient { Name = x.Name }
                 }).ToList();
 
-            // HTTP Request vorbereiten
-            using var request = new HttpRequestMessage(HttpMethod.Post, "api/recipes");
-            request.Content = JsonContent.Create(recipe);
+            HttpRequestMessage request;
+            if (IsEditMode)
+            {
+                request = new HttpRequestMessage(HttpMethod.Put, $"api/recipes/{Id}");
+            }
+            else
+            {
+                request = new HttpRequestMessage(HttpMethod.Post, "api/recipes");
+            }
 
-            // Den Header setzen
+            request.Content = JsonContent.Create(recipe);
             request.Headers.Add("RequestVerificationToken", token);
 
             var response = await Http.SendAsync(request);
 
             if (response.IsSuccessStatusCode)
             {
-                Snackbar.Add("Rezept gespeichert!", Severity.Success);
-                //Nav.NavigateTo("/");
+                Snackbar.Add(IsEditMode ? "Rezept aktualisiert!" : "Rezept gespeichert!", Severity.Success);
+                Nav.NavigateTo("/recipes");
             }
             else
             {
