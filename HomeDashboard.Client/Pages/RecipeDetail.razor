@@ -1,0 +1,206 @@
+@page "/recipe/{Id:int}"
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@rendermode InteractiveAuto
+
+<style>
+    .ingredient-row {
+        display: flex;
+        align-items: baseline;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--mud-palette-lines-default);
+    }
+    .ingredient-row:last-child {
+        border-bottom: none;
+    }
+    .ingredient-amount {
+        min-width: 80px;
+        font-weight: 600;
+        color: var(--mud-palette-primary);
+    }
+    .ingredient-name {
+        flex: 1;
+    }
+    .ingredient-note {
+        font-style: italic;
+        color: var(--mud-palette-text-secondary);
+        font-size: 0.85em;
+        margin-left: 6px;
+    }
+    .instructions-text {
+        white-space: pre-wrap;
+        line-height: 1.8;
+    }
+
+    @@media print {
+        .no-print { display: none !important; }
+        .mud-drawer { display: none !important; }
+        .mud-appbar { display: none !important; }
+        .mud-main-content { padding: 0 !important; margin: 0 !important; }
+        .mud-container { max-width: 100% !important; padding: 8px !important; }
+        .mud-paper { box-shadow: none !important; border: 1px solid #ddd !important; }
+    }
+</style>
+
+<PageTitle>@(_recipe?.Title ?? "Rezept")</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6 mb-10">
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+    }
+    else if (_recipe == null)
+    {
+        <MudAlert Severity="Severity.Error">Rezept nicht gefunden.</MudAlert>
+    }
+    else
+    {
+        @* Kopfzeile *@
+        <div class="d-flex align-center justify-space-between mb-2 no-print">
+            <MudButton StartIcon="@Icons.Material.Filled.ArrowBack"
+                       Variant="Variant.Text"
+                       OnClick="@(() => Nav.NavigateTo("/recipes"))">
+                Zurück
+            </MudButton>
+            <div>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                               Color="Color.Primary"
+                               Title="Bearbeiten"
+                               OnClick="@(() => Nav.NavigateTo($"/recipe/edit/{_recipe.Id}"))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Print"
+                               Color="Color.Default"
+                               Title="Drucken"
+                               OnClick="Print" />
+            </div>
+        </div>
+
+        @* Titel *@
+        <MudText Typo="Typo.h3" Class="mb-3" Style="font-weight:700">@_recipe.Title</MudText>
+
+        @* Meta-Chips *@
+        <div class="d-flex flex-wrap gap-2 mb-4">
+            @if (_recipe.PreparationTimeMinutes > 0)
+            {
+                <MudChip T="string" Icon="@Icons.Material.Filled.Timer"
+                         Variant="Variant.Outlined" Size="Size.Medium">
+                    @_recipe.PreparationTimeMinutes Minuten
+                </MudChip>
+            }
+            @if (_recipe.Servings > 0)
+            {
+                <MudChip T="string" Icon="@Icons.Material.Filled.People"
+                         Variant="Variant.Outlined" Size="Size.Medium">
+                    @_recipe.Servings Portionen
+                </MudChip>
+            }
+            @if (!string.IsNullOrWhiteSpace(_recipe.Tags))
+            {
+                @foreach (var tag in _recipe.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    <MudChip T="string" Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Small">
+                        @tag
+                    </MudChip>
+                }
+            }
+        </div>
+
+        @* Beschreibung *@
+        @if (!string.IsNullOrWhiteSpace(_recipe.Description))
+        {
+            <MudText Typo="Typo.body1" Class="mb-6" Style="color: var(--mud-palette-text-secondary)">
+                @_recipe.Description
+            </MudText>
+        }
+
+        @* Zweispaltiger Inhalt *@
+        <MudGrid>
+            @* Zutaten *@
+            <MudItem xs="12" md="5">
+                <MudPaper Elevation="2" Class="pa-5" Style="height:100%">
+                    <MudText Typo="Typo.h6" Class="mb-3" Style="font-weight:600">
+                        <MudIcon Icon="@Icons.Material.Filled.ShoppingBasket" Class="mr-2" Style="vertical-align:middle" />
+                        Zutaten
+                    </MudText>
+                    @if (_recipe.Ingredients.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Keine Zutaten angegeben.</MudText>
+                    }
+                    else
+                    {
+                        @foreach (var ri in _recipe.Ingredients)
+                        {
+                            <div class="ingredient-row">
+                                <span class="ingredient-amount">
+                                    @(ri.Amount > 0 ? FormatAmount(ri.Amount) : "") @ri.Unit
+                                </span>
+                                <span class="ingredient-name">@(ri.Ingredient?.Name ?? "")</span>
+                                @if (!string.IsNullOrWhiteSpace(ri.Note))
+                                {
+                                    <span class="ingredient-note">(@ri.Note)</span>
+                                }
+                            </div>
+                        }
+                    }
+                </MudPaper>
+            </MudItem>
+
+            @* Anleitung *@
+            <MudItem xs="12" md="7">
+                <MudPaper Elevation="2" Class="pa-5" Style="height:100%">
+                    <MudText Typo="Typo.h6" Class="mb-3" Style="font-weight:600">
+                        <MudIcon Icon="@Icons.Material.Filled.MenuBook" Class="mr-2" Style="vertical-align:middle" />
+                        Zubereitung
+                    </MudText>
+                    @if (string.IsNullOrWhiteSpace(_recipe.Instructions))
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Keine Anleitung angegeben.</MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body1" Class="instructions-text">@_recipe.Instructions</MudText>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Recipe? _recipe;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        try
+        {
+            _recipe = await Http.GetFromJsonAsync<Recipe>($"api/recipes/{Id}");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Rezept konnte nicht geladen werden.", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Print()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private static string FormatAmount(double amount)
+    {
+        if (amount == Math.Floor(amount))
+            return ((int)amount).ToString();
+        return amount.ToString("0.##");
+    }
+}

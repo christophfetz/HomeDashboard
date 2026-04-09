@@ -1,0 +1,274 @@
+@page "/ingredients"
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@rendermode InteractiveAuto
+
+<PageTitle>Zutaten</PageTitle>
+
+<form style="display:none">
+    <AntiforgeryToken />
+</form>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <div class="d-flex align-center justify-space-between mb-6">
+        <MudText Typo="Typo.h4">Zutaten</MudText>
+        @if (!_showForm)
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="ShowNewForm">
+                NEU
+            </MudButton>
+        }
+    </div>
+
+    @if (_showForm)
+    {
+        <MudPaper Elevation="4" Class="pa-6 mb-6">
+            <MudText Typo="Typo.h6" GutterBottom="true">
+                @(_editId == 0 ? "Neue Zutat" : "Zutat bearbeiten")
+            </MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Name"
+                                  @bind-Value="_editName"
+                                  Variant="Variant.Outlined"
+                                  ShrinkLabel="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Kategorie"
+                                  @bind-Value="_editCategory"
+                                  Variant="Variant.Outlined"
+                                  ShrinkLabel="true"
+                                  Placeholder="z.B. Gemüse, Gewürze" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Bevorzugte Einheit"
+                                  @bind-Value="_editUnit"
+                                  Variant="Variant.Outlined"
+                                  ShrinkLabel="true"
+                                  Placeholder="z.B. g, ml, Stück" />
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudCheckBox T="bool"
+                                 @bind-Value="_editIsStandard"
+                                 Label="Standard-Zutat (immer zu Hause)"
+                                 Color="Color.Success" />
+                </MudItem>
+            </MudGrid>
+            <div class="d-flex justify-end gap-2 mt-4">
+                <MudButton Variant="Variant.Text" OnClick="CancelForm">Abbrechen</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveIngredient">
+                    Speichern
+                </MudButton>
+            </div>
+        </MudPaper>
+    }
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_ingredients.Count == 0 && !_showForm)
+    {
+        <MudAlert Severity="Severity.Info">
+            Noch keine Zutaten vorhanden. Klicke auf "NEU" um eine Zutat hinzuzufügen.
+        </MudAlert>
+    }
+    else
+    {
+        <MudTable T="Ingredient" Items="_ingredients" Hover="true">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Kategorie</MudTh>
+                <MudTh>Einheit</MudTh>
+                <MudTh>Standard-Zutat</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Kategorie">@(context.Category ?? "–")</MudTd>
+                <MudTd DataLabel="Einheit">@(context.PreferredUnit ?? "–")</MudTd>
+                <MudTd DataLabel="Standard-Zutat">
+                    @if (context.IsStandardStock)
+                    {
+                        <MudChip T="string" Icon="@Icons.Material.Filled.Home"
+                                 Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">
+                            Immer da
+                        </MudChip>
+                    }
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => ShowEditForm(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => DeleteIngredient(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudContainer>
+
+@code {
+    private List<Ingredient> _ingredients = new();
+    private bool _loading = true;
+    private bool _showForm = false;
+
+    private int _editId;
+    private string _editName = "";
+    private string? _editCategory;
+    private string? _editUnit;
+    private bool _editIsStandard;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadIngredients();
+    }
+
+    private async Task LoadIngredients()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<Ingredient>>("api/ingredients");
+            _ingredients = result ?? new();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Zutaten konnten nicht geladen werden.", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ShowNewForm()
+    {
+        _editId = 0;
+        _editName = "";
+        _editCategory = null;
+        _editUnit = null;
+        _editIsStandard = false;
+        _showForm = true;
+    }
+
+    private void ShowEditForm(Ingredient ingredient)
+    {
+        _editId = ingredient.Id;
+        _editName = ingredient.Name;
+        _editCategory = ingredient.Category;
+        _editUnit = ingredient.PreferredUnit;
+        _editIsStandard = ingredient.IsStandardStock;
+        _showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        _showForm = false;
+    }
+
+    private async Task SaveIngredient()
+    {
+        if (string.IsNullOrWhiteSpace(_editName))
+        {
+            Snackbar.Add("Name darf nicht leer sein.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var token = await JS.InvokeAsync<string>("window.getAntiforgeryToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                Snackbar.Add("Sicherheits-Token konnte nicht geladen werden.", Severity.Error);
+                return;
+            }
+
+            var payload = new Ingredient
+            {
+                Id = _editId,
+                Name = _editName.Trim(),
+                Category = _editCategory,
+                PreferredUnit = _editUnit,
+                IsStandardStock = _editIsStandard
+            };
+
+            HttpRequestMessage request = _editId == 0
+                ? new HttpRequestMessage(HttpMethod.Post, "api/ingredients")
+                : new HttpRequestMessage(HttpMethod.Put, $"api/ingredients/{_editId}");
+
+            request.Content = JsonContent.Create(payload);
+            request.Headers.Add("RequestVerificationToken", token);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _showForm = false;
+                Snackbar.Add(_editId == 0 ? "Zutat hinzugefügt!" : "Zutat aktualisiert!", Severity.Success);
+                await LoadIngredients();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                Snackbar.Add("Eine Zutat mit diesem Namen existiert bereits.", Severity.Warning);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler: {response.StatusCode}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Verbindungsfehler.", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    private async Task DeleteIngredient(Ingredient ingredient)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Möchtest du \"{ingredient.Name}\" wirklich löschen?");
+        if (!confirmed) return;
+
+        try
+        {
+            var token = await JS.InvokeAsync<string>("window.getAntiforgeryToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                Snackbar.Add("Sicherheits-Token konnte nicht geladen werden.", Severity.Error);
+                return;
+            }
+
+            using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/ingredients/{ingredient.Id}");
+            request.Headers.Add("RequestVerificationToken", token);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _ingredients.Remove(ingredient);
+                Snackbar.Add("Zutat gelöscht.", Severity.Success);
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                Snackbar.Add("Diese Zutat wird in einem Rezept verwendet und kann nicht gelöscht werden.", Severity.Warning);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler beim Löschen: {response.StatusCode}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Verbindungsfehler.", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+    }
+}

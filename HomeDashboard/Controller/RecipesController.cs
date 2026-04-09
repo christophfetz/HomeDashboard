@@ -32,7 +32,7 @@ public class RecipesController : ControllerBase
 
             if (existing == null)
             {
-                existing = new Ingredient { Name = ingredientName };
+                existing = new Ingredient { Name = ingredientName, PreferredUnit = ri.Unit };
                 _context.Ingredients.Add(existing);
                 await _context.SaveChangesAsync();
             }
@@ -108,7 +108,7 @@ public class RecipesController : ControllerBase
                 .FirstOrDefaultAsync(i => i.Name.ToLower() == name.ToLower());
             if (ing == null)
             {
-                ing = new Ingredient { Name = name };
+                ing = new Ingredient { Name = name, PreferredUnit = ri.Unit };
                 _context.Ingredients.Add(ing);
                 await _context.SaveChangesAsync();
             }

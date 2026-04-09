@@ -52,7 +52,8 @@
             @foreach (var recipe in _recipes)
             {
                 <MudItem xs="12" sm="6" md="4">
-                    <MudCard Elevation="2" Style="height:100%; display:flex; flex-direction:column;">
+                    <MudCard Elevation="2" Style="height:100%; display:flex; flex-direction:column; cursor:pointer;"
+                             @onclick="@(() => Nav.NavigateTo($"/recipe/{recipe.Id}"))">
                         <MudCardHeader>
                             <CardHeaderContent>
                                 <MudText Typo="Typo.h6">@recipe.Title</MudText>
@@ -86,7 +87,7 @@
                                 </MudText>
                             }
                         </MudCardContent>
-                        <MudCardActions>
+                        <MudCardActions @onclick:stopPropagation="true">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                            Color="Color.Primary"
                                            Title="Bearbeiten"
