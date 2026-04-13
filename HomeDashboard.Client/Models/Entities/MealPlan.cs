@@ -13,7 +13,7 @@ namespace HomeDashboard.Client.Models.Entities
         public MealType Type { get; set; } = MealType.Dinner;
 
         // Verknüpfung zum Rezept
-        public int RecipeId { get; set; }
+        public int? RecipeId { get; set; }
         public Recipe? Recipe { get; set; }
 
         // Optional: Notiz (z.B. "Gäste kommen um 19 Uhr")

@@ -1,0 +1,680 @@
+@page "/mealplan"
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@rendermode InteractiveAuto
+
+<PageTitle>Wochenplan</PageTitle>
+
+<style>
+    .meal-calendar {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 600px;
+    }
+
+    .meal-calendar th, .meal-calendar td {
+        border: 1px solid var(--mud-palette-lines-default);
+        padding: 4px;
+        vertical-align: top;
+    }
+
+    .day-header {
+        text-align: center;
+        padding: 8px 4px;
+        background: var(--mud-palette-surface);
+        min-width: 110px;
+    }
+
+    .day-header.today {
+        background: var(--mud-palette-primary);
+        color: white !important;
+    }
+
+    .day-header.today .mud-typography {
+        color: white !important;
+    }
+
+    .meal-type-col {
+        width: 90px;
+        background: var(--mud-palette-surface);
+    }
+
+    .meal-type-label {
+        padding: 4px 8px;
+        white-space: nowrap;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--mud-palette-text-secondary);
+    }
+
+    .meal-cell {
+        height: 72px;
+        cursor: pointer;
+        position: relative;
+        padding: 0 !important;
+    }
+
+    .meal-cell:hover {
+        background: var(--mud-palette-action-default-hover);
+    }
+
+    .meal-cell.active-cell {
+        outline: 2px solid var(--mud-palette-primary);
+        outline-offset: -2px;
+    }
+
+    .meal-entry-content {
+        height: 100%;
+        padding: 6px 8px;
+    }
+
+    .meal-cell-empty-icon {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.15s;
+        pointer-events: none;
+    }
+
+    .meal-cell:hover .meal-cell-empty-icon {
+        opacity: 1;
+    }
+
+    .recipe-list-item {
+        cursor: pointer;
+        padding: 8px 12px;
+        border-radius: 6px;
+        transition: background 0.1s;
+    }
+
+    .recipe-list-item:hover {
+        background: var(--mud-palette-action-default-hover);
+    }
+
+    .recipe-list-item.selected {
+        background: var(--mud-palette-primary);
+        color: white;
+    }
+</style>
+
+<form style="display:none">
+    <AntiforgeryToken />
+</form>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-10">
+
+    <div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-2">
+        <MudText Typo="Typo.h4">Wochenplan</MudText>
+        <div class="d-flex gap-2 flex-wrap">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Shuffle"
+                       OnClick="GenerateRandomWeek"
+                       Disabled="_loading || _saving">
+                Zufälliger Wochenplan
+            </MudButton>
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                       OnClick="DeleteCurrentWeek"
+                       Disabled="_loading || _saving || !_entries.Any()">
+                Woche löschen
+            </MudButton>
+        </div>
+    </div>
+
+    <div class="d-flex align-center gap-2 mb-4 flex-wrap">
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft"
+                       OnClick="PreviousWeek"
+                       Disabled="_loading" />
+        <MudText Typo="Typo.body1" Style="font-weight:500; min-width:180px; text-align:center">
+            @WeekLabel
+        </MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight"
+                       OnClick="NextWeek"
+                       Disabled="_loading" />
+        @if (!IsCurrentWeek)
+        {
+            <MudButton Variant="Variant.Outlined"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Today"
+                       OnClick="GoToCurrentWeek"
+                       Disabled="_loading">
+                Aktuelle Woche
+            </MudButton>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-2" />
+    }
+
+    <MudPaper Elevation="2" Class="pa-0" Style="overflow-x:auto">
+        <table class="meal-calendar">
+            <thead>
+                <tr>
+                    <th class="meal-type-col"></th>
+                    @foreach (var day in _weekDays)
+                    {
+                        <th class="day-header @(IsToday(day) ? "today" : "")">
+                            <MudText Typo="Typo.caption" Class="d-block">
+                                @day.ToString("ddd", _deCulture)
+                            </MudText>
+                            <MudText Typo="Typo.body1" Style="font-weight:600">
+                                @day.Day
+                            </MudText>
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var mealType in _mealTypes)
+                {
+                    <tr>
+                        <td class="meal-type-col">
+                            <div class="meal-type-label">@MealTypeLabel(mealType)</div>
+                        </td>
+                        @foreach (var day in _weekDays)
+                        {
+                            var entry = GetEntry(day, mealType);
+                            var capturedDay = day;
+                            var capturedType = mealType;
+                            var capturedEntry = entry;
+                            bool isActive = _panelOpen && _panelDay.Date == day.Date && _panelType == mealType;
+                            <td class="meal-cell @(isActive ? "active-cell" : "")"
+                                @key="@($"{day:yyyy-MM-dd}-{mealType}")"
+                                @onclick="@(() => OnCellClick(capturedDay, capturedType, capturedEntry))">
+                                @if (entry != null)
+                                {
+                                    <div class="meal-entry-content">
+                                        <MudText Typo="Typo.body2" Style="font-weight:500; line-height:1.3">
+                                            @(entry.Recipe?.Title ?? "")
+                                        </MudText>
+                                        @if (!string.IsNullOrWhiteSpace(entry.Note))
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary"
+                                                     Style="font-style:italic; line-height:1.2">
+                                                @entry.Note
+                                            </MudText>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="meal-cell-empty-icon">
+                                        <MudIcon Icon="@Icons.Material.Filled.Add"
+                                                 Size="Size.Small"
+                                                 Color="Color.Default" />
+                                    </div>
+                                }
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </MudPaper>
+
+    @* Inline-Panel für Hinzufügen / Bearbeiten *@
+    @if (_panelOpen)
+    {
+        <MudPaper Elevation="3" Class="mt-4 pa-4">
+            <div class="d-flex align-center justify-space-between mb-1">
+                <div>
+                    <MudText Typo="Typo.h6">
+                        @(_panelEntry != null ? "Eintrag bearbeiten" : "Mahlzeit eintragen")
+                    </MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        @_panelDay.ToString("dddd, dd. MMMM", _deCulture) — @MealTypeLabel(_panelType)
+                    </MudText>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="ClosePanel" />
+            </div>
+
+            <MudDivider Class="mb-3" />
+
+            @* Ausgewähltes Rezept *@
+            @if (_panelRecipe != null)
+            {
+                <MudAlert Severity="Severity.Success" Dense="true" Class="mb-3"
+                          Icon="@Icons.Material.Filled.CheckCircle">
+                    <div class="d-flex align-center justify-space-between">
+                        <MudText Typo="Typo.body2"><strong>@_panelRecipe.Title</strong></MudText>
+                        <MudIconButton Size="Size.Small"
+                                       Icon="@Icons.Material.Filled.Close"
+                                       OnClick="@(() => { _panelRecipe = null; _panelSearch = ""; })" />
+                    </div>
+                </MudAlert>
+            }
+
+            @* Suche + Rezeptliste *@
+            <MudTextField @bind-Value="_panelSearch"
+                          Label="Rezept suchen"
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          ShrinkLabel="true"
+                          Immediate="true"
+                          Class="mb-2"
+                          Placeholder="Tippen zum Filtern…" />
+
+            <div style="max-height:220px; overflow-y:auto; border:1px solid var(--mud-palette-lines-default); border-radius:8px; margin-bottom:16px;">
+                @{
+                    var filtered = FilteredRecipes.ToList();
+                }
+                @if (filtered.Count == 0)
+                {
+                    <div style="padding:16px; text-align:center; color:var(--mud-palette-text-secondary)">
+                        Keine Rezepte gefunden
+                    </div>
+                }
+                else
+                {
+                    @foreach (var recipe in filtered)
+                    {
+                        var r = recipe;
+                        <div class="recipe-list-item @(_panelRecipe?.Id == r.Id ? "selected" : "")"
+                             @onclick="@(() => SelectRecipe(r))">
+                            <MudText Typo="Typo.body2">@r.Title</MudText>
+                        </div>
+                    }
+                }
+            </div>
+
+            <MudTextField Label="Notiz (optional)"
+                          @bind-Value="_panelNote"
+                          Variant="Variant.Outlined"
+                          ShrinkLabel="true"
+                          Lines="2"
+                          Class="mb-3"
+                          Placeholder="z.B. Gäste kommen um 19 Uhr" />
+
+            <div class="d-flex gap-2 flex-wrap align-center">
+                @if (_panelEntry != null)
+                {
+                    <MudButton Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Delete"
+                               OnClick="DeletePanelEntry"
+                               Disabled="_saving">
+                        Löschen
+                    </MudButton>
+                }
+                <MudSpacer />
+                <MudButton OnClick="ClosePanel" Disabled="_saving">Abbrechen</MudButton>
+                <MudButton Color="Color.Primary"
+                           Variant="Variant.Filled"
+                           OnClick="SavePanel"
+                           Disabled="_saving">
+                    @if (_saving)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Speichern
+                </MudButton>
+            </div>
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@code {
+    private static readonly System.Globalization.CultureInfo _deCulture =
+        new System.Globalization.CultureInfo("de-DE");
+
+    private readonly MealType[] _mealTypes =
+        [MealType.Breakfast, MealType.Lunch, MealType.Dinner];
+
+    private DateTime _weekStart;
+    private List<DateTime> _weekDays = new();
+    private List<MealPlan> _entries = new();
+    private List<Recipe> _allRecipes = new();
+    private bool _loading = true;
+    private bool _saving = false;
+
+    // Panel state
+    private bool _panelOpen = false;
+    private DateTime _panelDay;
+    private MealType _panelType;
+    private MealPlan? _panelEntry;
+    private Recipe? _panelRecipe;
+    private string _panelNote = "";
+    private string _panelSearch = "";
+
+    private IEnumerable<Recipe> FilteredRecipes => string.IsNullOrWhiteSpace(_panelSearch)
+        ? _allRecipes
+        : _allRecipes.Where(r => r.Title.Contains(_panelSearch, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        SetWeek(GetMondayOfCurrentWeek());
+        await Task.WhenAll(LoadWeek(), LoadRecipes());
+    }
+
+    private static DateTime GetMondayOfCurrentWeek()
+    {
+        var today = DateTime.Today;
+        int diff = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return today.AddDays(-diff);
+    }
+
+    private void SetWeek(DateTime monday)
+    {
+        _weekStart = monday.Date;
+        _weekDays = Enumerable.Range(0, 7).Select(i => _weekStart.AddDays(i)).ToList();
+    }
+
+    private bool IsCurrentWeek => _weekStart == GetMondayOfCurrentWeek();
+    private bool IsToday(DateTime day) => day.Date == DateTime.Today;
+    private string WeekLabel =>
+        $"{_weekStart.ToString("dd. MMM", _deCulture)} – {_weekStart.AddDays(6).ToString("dd. MMM yyyy", _deCulture)}";
+
+    private void PreviousWeek() { SetWeek(_weekStart.AddDays(-7)); _ = LoadWeek(); }
+    private void NextWeek() { SetWeek(_weekStart.AddDays(7)); _ = LoadWeek(); }
+    private void GoToCurrentWeek() { SetWeek(GetMondayOfCurrentWeek()); _ = LoadWeek(); }
+
+    private async Task LoadWeek()
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            var url = $"api/mealplans?weekStart={_weekStart:yyyy-MM-dd}";
+            var result = await Http.GetFromJsonAsync<List<MealPlan>>(url);
+            _entries = result ?? new();
+        }
+        catch
+        {
+            Snackbar.Add("Wochenplan konnte nicht geladen werden.", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadRecipes()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<Recipe>>("api/recipes");
+            _allRecipes = result ?? new();
+        }
+        catch
+        {
+            Snackbar.Add("Rezepte konnten nicht geladen werden.", Severity.Error);
+        }
+    }
+
+    private MealPlan? GetEntry(DateTime day, MealType type)
+        => _entries.FirstOrDefault(e => e.Date.Date == day.Date && e.Type == type);
+
+    private void OnCellClick(DateTime day, MealType type, MealPlan? entry)
+    {
+        // Toggle panel closed if same cell clicked again
+        if (_panelOpen && _panelDay.Date == day.Date && _panelType == type)
+        {
+            ClosePanel();
+            return;
+        }
+        OpenPanel(day, type, entry);
+    }
+
+    private void OpenPanel(DateTime day, MealType type, MealPlan? entry)
+    {
+        _panelDay = day;
+        _panelType = type;
+        _panelEntry = entry;
+        _panelRecipe = entry?.Recipe
+            ?? (entry?.RecipeId.HasValue == true
+                ? _allRecipes.FirstOrDefault(r => r.Id == entry.RecipeId!.Value)
+                : null);
+        _panelNote = entry?.Note ?? "";
+        _panelSearch = "";
+        _panelOpen = true;
+    }
+
+    private void ClosePanel()
+    {
+        _panelOpen = false;
+    }
+
+    private void SelectRecipe(Recipe recipe)
+    {
+        _panelRecipe = _panelRecipe?.Id == recipe.Id ? null : recipe;
+        _panelSearch = "";
+    }
+
+    private async Task SavePanel()
+    {
+        if (_panelRecipe == null && string.IsNullOrWhiteSpace(_panelNote))
+        {
+            Snackbar.Add("Bitte ein Rezept auswählen oder eine Notiz eingeben.", Severity.Warning);
+            return;
+        }
+
+        if (_panelEntry != null)
+        {
+            await UpdateEntry(_panelEntry, _panelRecipe, _panelNote);
+        }
+        else
+        {
+            await CreateEntry(new MealPlan
+            {
+                Date = _panelDay,
+                Type = _panelType,
+                RecipeId = _panelRecipe?.Id,
+                Note = string.IsNullOrWhiteSpace(_panelNote) ? null : _panelNote
+            });
+        }
+        ClosePanel();
+    }
+
+    private async Task DeletePanelEntry()
+    {
+        if (_panelEntry == null) return;
+        await DeleteEntry(_panelEntry);
+        ClosePanel();
+    }
+
+    private static string MealTypeLabel(MealType t) => t switch
+    {
+        MealType.Breakfast => "Frühstück",
+        MealType.Lunch     => "Mittagessen",
+        MealType.Dinner    => "Abendessen",
+        _                  => t.ToString()
+    };
+
+    private async Task<string?> GetToken()
+    {
+        var token = await JS.InvokeAsync<string>("window.getAntiforgeryToken");
+        if (string.IsNullOrEmpty(token))
+        {
+            Snackbar.Add("Sicherheits-Token konnte nicht geladen werden.", Severity.Error);
+            return null;
+        }
+        return token;
+    }
+
+    private async Task CreateEntry(MealPlan plan)
+    {
+        var token = await GetToken();
+        if (token == null) return;
+        _saving = true;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "api/mealplans");
+            req.Content = JsonContent.Create(plan);
+            req.Headers.Add("RequestVerificationToken", token);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var created = await resp.Content.ReadFromJsonAsync<MealPlan>();
+                if (created != null) _entries.Add(created);
+                Snackbar.Add("Mahlzeit eingetragen.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler beim Speichern: {resp.StatusCode}", Severity.Error);
+            }
+        }
+        catch
+        {
+            Snackbar.Add("Verbindungsfehler.", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task UpdateEntry(MealPlan existing, Recipe? recipe, string note)
+    {
+        var token = await GetToken();
+        if (token == null) return;
+        _saving = true;
+        try
+        {
+            var updated = new MealPlan
+            {
+                Date = existing.Date,
+                Type = existing.Type,
+                RecipeId = recipe?.Id,
+                Note = string.IsNullOrWhiteSpace(note) ? null : note
+            };
+            using var req = new HttpRequestMessage(HttpMethod.Put, $"api/mealplans/{existing.Id}");
+            req.Content = JsonContent.Create(updated);
+            req.Headers.Add("RequestVerificationToken", token);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var saved = await resp.Content.ReadFromJsonAsync<MealPlan>();
+                if (saved != null)
+                {
+                    var idx = _entries.IndexOf(existing);
+                    if (idx >= 0) _entries[idx] = saved;
+                }
+                Snackbar.Add("Eintrag aktualisiert.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler beim Speichern: {resp.StatusCode}", Severity.Error);
+            }
+        }
+        catch
+        {
+            Snackbar.Add("Verbindungsfehler.", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteEntry(MealPlan entry)
+    {
+        var token = await GetToken();
+        if (token == null) return;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Delete, $"api/mealplans/{entry.Id}");
+            req.Headers.Add("RequestVerificationToken", token);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                _entries.Remove(entry);
+                Snackbar.Add("Eintrag gelöscht.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler beim Löschen: {resp.StatusCode}", Severity.Error);
+            }
+        }
+        catch
+        {
+            Snackbar.Add("Verbindungsfehler.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteCurrentWeek()
+    {
+        var confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"Alle Einträge der Woche {WeekLabel} löschen?");
+        if (!confirmed) return;
+
+        var token = await GetToken();
+        if (token == null) return;
+
+        _saving = true;
+        ClosePanel();
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Delete,
+                $"api/mealplans/week?weekStart={_weekStart:yyyy-MM-dd}");
+            req.Headers.Add("RequestVerificationToken", token);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                _entries.Clear();
+                Snackbar.Add("Wochenplan gelöscht.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler: {resp.StatusCode}", Severity.Error);
+            }
+        }
+        catch
+        {
+            Snackbar.Add("Verbindungsfehler.", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task GenerateRandomWeek()
+    {
+        var confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Mittag- und Abendessen für diese Woche mit Zufallsrezepten füllen?\n(Bereits belegte Slots bleiben unverändert.)");
+        if (!confirmed) return;
+
+        var token = await GetToken();
+        if (token == null) return;
+
+        _saving = true;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post,
+                $"api/mealplans/randomweek?weekStart={_weekStart:yyyy-MM-dd}");
+            req.Headers.Add("RequestVerificationToken", token);
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var refreshed = await resp.Content.ReadFromJsonAsync<List<MealPlan>>();
+                _entries = refreshed ?? new();
+                Snackbar.Add("Wochenplan generiert!", Severity.Success);
+            }
+            else
+            {
+                var msg = await resp.Content.ReadAsStringAsync();
+                Snackbar.Add($"Fehler: {msg}", Severity.Error);
+            }
+        }
+        catch
+        {
+            Snackbar.Add("Verbindungsfehler.", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}
